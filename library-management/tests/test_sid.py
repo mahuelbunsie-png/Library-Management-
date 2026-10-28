@@ -1,6 +1,5 @@
 import pytest
 
-
 def add_book(client, title="Great Gatsby", author="F. Scott Fitzgerald",
              isbn="9780441172719", copies=2):
     response = client.post("/books", json={
@@ -12,53 +11,69 @@ def add_book(client, title="Great Gatsby", author="F. Scott Fitzgerald",
     assert response.status_code == 201
     return response.get_json()
 
+def test_add_and_list_books(client):
 
-def test_created_books_are_saved_and_listed(client):
-    first = add_book(client)
-    second = add_book(client, "Dune", "Frank Herbert", "9780441013593", 1)
+    # Add two different books
+    frst = add_book(client)
+    scnd = add_book(client, "Dune", "Frank Herbert", "9780441013593", 1)
 
-    assert first["id"] != second["id"]
+    assert frst["id"] != scnd["id"]
 
     response = client.get("/books")
     assert response.status_code == 200
-    books = {book["id"]: book for book in response.get_json()}
+
+    books = {}
+
+    # Organise returned books by ID.
+
+    for book in response.get_json():
+        books[book["id"]] = book
 
     assert len(books) == 2
-    assert books[first["id"]] == {
-        "id": first["id"],
+    assert books[frst["id"]] == {
+        "id": frst["id"],
         "title": "Great Gatsby",
         "author": "F. Scott Fitzgerald",
         "isbn": "9780441172719",
         "total_copies": 2,
         "available_copies": 2
     }
-    assert books[second["id"]]["title"] == "Dune"
-    assert books[second["id"]]["available_copies"] == 1
+    assert books[scnd["id"]]["title"] == "Dune"
+    assert books[scnd["id"]]["available_copies"] == 1
 
 
-def test_get_book_returns_only_requested_record(client):
-    first = add_book(client)
-    second = add_book(client, "Dune", "Frank Herbert", "9780441013593", 1)
+def test_get_one_book(client):
+    frst = add_book(client)
+    scnd = add_book(client, "Dune", "Frank Herbert", "9780441013593", 1)
 
-    response = client.get(f"/books/{second['id']}")
+    response = client.get(f"/books/{scnd['id']}")
 
     assert response.status_code == 200
-    assert response.get_json() == second
-    assert response.get_json()["id"] != first["id"]
+    assert response.get_json() == scnd
+    assert response.get_json()["id"] != frst["id"]
 
 
-@pytest.mark.parametrize("search", ["gAtSbY", "FITZGERALD"])
-def test_search_matches_title_or_author(client, search):
-    expected = add_book(client)
+def test_search_by_title(client):
+    exptd = add_book(client)
     add_book(client, "Dune", "Frank Herbert", "9780441013593", 1)
 
-    response = client.get("/books", query_string={"search": search})
+    response = client.get("/books", query_string={"search": "gAtSbY"})
 
     assert response.status_code == 200
-    assert response.get_json() == [expected]
+    assert response.get_json() == [exptd]
 
 
-def test_search_with_no_match_returns_empty_list(client):
+def test_search_by_author(client):
+    exptd = add_book(client)
+    add_book(client, "Dune", "Frank Herbert", "9780441013593", 1)
+
+    response = client.get("/books", query_string={"search": "FITZGERALD"})
+
+    assert response.status_code == 200
+    assert response.get_json() == [exptd]
+
+
+def test_search_no_match(client):
     add_book(client)
 
     response = client.get("/books", query_string={"search": "NoSuchBook"})
@@ -68,17 +83,17 @@ def test_search_with_no_match_returns_empty_list(client):
     assert len(client.get("/books").get_json()) == 1
 
 
-def test_get_missing_book_returns_error_without_changing_records(client):
-    existing = add_book(client)
+def test_get_missing_book(client):
+    exstng = add_book(client)
 
     response = client.get("/books/999")
 
     assert response.status_code == 404
     assert response.get_json() == {"error": "Book not found"}
-    assert client.get("/books").get_json() == [existing]
+    assert client.get("/books").get_json() == [exstng]
 
 
-def test_update_book_saves_changes_and_preserves_other_fields(client):
+def test_update_book(client):
     book = add_book(client)
 
     response = client.put(f"/books/{book['id']}", json={
@@ -87,15 +102,23 @@ def test_update_book_saves_changes_and_preserves_other_fields(client):
     })
 
     assert response.status_code == 200
-    expected = dict(book, title="The Great Gatsby", author="Fitzgerald")
-    assert response.get_json() == expected
-    assert client.get(f"/books/{book['id']}").get_json() == expected
-    assert client.get(
-        "/books", query_string={"search": "Fitzgerald"}
-    ).get_json() == [expected]
+
+    exptd = book.copy()
+    exptd["title"] = "The Great Gatsby"
+    exptd["author"] = "Fitzgerald"
+
+    assert response.get_json() == exptd
+
+    saved = client.get(f"/books/{book['id']}")
+    assert saved.status_code == 200
+    assert saved.get_json() == exptd
+
+    search = client.get("/books", query_string={"search": "Fitzgerald"})
+    assert search.status_code == 200
+    assert search.get_json() == [exptd]
 
 
-def test_update_missing_book_leaves_existing_book_unchanged(client):
+def test_update_missing_book(client):
     book = add_book(client)
 
     response = client.put("/books/999", json={"title": "Changed"})
@@ -105,32 +128,32 @@ def test_update_missing_book_leaves_existing_book_unchanged(client):
     assert client.get("/books").get_json() == [book]
 
 
-def test_delete_book_removes_only_selected_record(client):
-    first = add_book(client)
-    second = add_book(client, "Dune", "Frank Herbert", "9780441013593", 1)
+def test_delete_book(client):
+    frst = add_book(client)
+    scnd = add_book(client, "Dune", "Frank Herbert", "9780441013593", 1)
 
-    response = client.delete(f"/books/{first['id']}")
+    response = client.delete(f"/books/{frst['id']}")
 
     assert response.status_code == 204
     assert response.data == b""
 
-    missing = client.get(f"/books/{first['id']}")
-    assert missing.status_code == 404
-    assert missing.get_json() == {"error": "Book not found"}
-    assert client.get("/books").get_json() == [second]
-    assert client.get(f"/books/{second['id']}").get_json() == second
+    msng = client.get(f"/books/{frst['id']}")
+    assert msng.status_code == 404
+    assert msng.get_json() == {"error": "Book not found"}
+    assert client.get("/books").get_json() == [scnd]
+    assert client.get(f"/books/{scnd['id']}").get_json() == scnd
 
 
-def test_delete_book_twice_returns_error_without_removing_other_books(client):
-    first = add_book(client)
-    second = add_book(client, "Dune", "Frank Herbert", "9780441013593", 1)
+def test_delete_book_twice(client):
+    frst = add_book(client)
+    scnd = add_book(client, "Dune", "Frank Herbert", "9780441013593", 1)
 
-    assert client.delete(f"/books/{first['id']}").status_code == 204
-    response = client.delete(f"/books/{first['id']}")
+    assert client.delete(f"/books/{frst['id']}").status_code == 204
+    response = client.delete(f"/books/{frst['id']}")
 
     assert response.status_code == 404
     assert response.get_json() == {"error": "Book not found"}
-    assert client.get("/books").get_json() == [second]
+    assert client.get("/books").get_json() == [scnd]
 
 
 def add_member(client, name="Sid", email="sid@example.com"):
@@ -142,118 +165,188 @@ def add_member(client, name="Sid", email="sid@example.com"):
 @pytest.fixture
 def borrowed_book(client):
     book = add_book(client, copies=1)
-    borrower = add_member(client)
-    waiting = add_member(client, "Alex", "alex@example.com")
+    brwr = add_member(client)
+    wtng = add_member(client, "Alex", "alex@example.com")
 
     response = client.post("/loans", json={
         "book_id": book["id"],
-        "member_id": borrower["id"]
+        "member_id": brwr["id"]
     })
 
     assert response.status_code == 201
-    return book, borrower, waiting, response.get_json()
+    return book, brwr, wtng, response.get_json()
 
 
-def test_reservation_for_borrowed_book_is_saved(client, borrowed_book):
-    book, borrower, waiting, loan = borrowed_book
+def test_reserve_borrowed_book(client, borrowed_book):
+    book, brwr, wtng, loan = borrowed_book
     assert client.get(
         f"/books/{book['id']}"
     ).get_json()["available_copies"] == 0
 
     response = client.post("/reservations", json={
         "book_id": book["id"],
-        "member_id": waiting["id"]
+        "member_id": wtng["id"]
     })
 
     assert response.status_code == 201
-    reservation = response.get_json()
-    assert reservation["book_id"] == book["id"]
-    assert reservation["member_id"] == waiting["id"]
-    assert reservation["fulfilled"] is False
-    assert reservation["reservation_date"]
-    assert client.get("/reservations").get_json() == [reservation]
+    resrv = response.get_json()
+    assert resrv["book_id"] == book["id"]
+    assert resrv["member_id"] == wtng["id"]
+    assert resrv["fulfilled"] is False
+    assert resrv["reservation_date"]
+    assert client.get("/reservations").get_json() == [resrv]
+
+    # Placing a reservation should not change the available copies
     assert client.get(
         f"/books/{book['id']}"
     ).get_json()["available_copies"] == 0
 
 
-@pytest.mark.parametrize("filter_name", ["book_id", "member_id"])
-def test_reservation_filter_returns_only_matches(client, filter_name):
-    first_book = add_book(client)
-    second_book = add_book(client, "Dune", "Frank Herbert", "9780441013593", 1)
-    first_member = add_member(client)
-    second_member = add_member(client, "Alex", "alex@example.com")
-    saved = []
+def test_filter_reservations_by_book(client):
+    frst_book = add_book(client)
+    scnd_book = add_book(client, "Dune", "Frank Herbert", "9780441013593", 1)
+    frst_mem = add_member(client)
+    scnd_mem = add_member(client, "Alex", "alex@example.com")
 
-    for book, member in [(first_book, first_member),
-                         (second_book, second_member)]:
-        response = client.post("/reservations", json={
-            "book_id": book["id"],
-            "member_id": member["id"]
-        })
-        assert response.status_code == 201
-        saved.append(response.get_json())
+    # Pair different book and member IDs to check the correct filter is used.
+    response = client.post("/reservations", json={
+        "book_id": frst_book["id"],
+        "member_id": scnd_mem["id"]
+    })
+    assert response.status_code == 201
+    frst_resrv = response.get_json()
+
+    response = client.post("/reservations", json={
+        "book_id": scnd_book["id"],
+        "member_id": frst_mem["id"]
+    })
+    assert response.status_code == 201
+    scnd_resrv = response.get_json()
 
     response = client.get("/reservations", query_string={
-        filter_name: saved[1][filter_name]
+        "book_id": frst_book["id"]
     })
 
     assert response.status_code == 200
-    assert response.get_json() == [saved[1]]
-    assert client.get("/reservations").get_json() == saved
+    assert response.get_json() == [frst_resrv]
+
+    saved = client.get("/reservations")
+    assert saved.get_json() == [frst_resrv, scnd_resrv]
 
 
-@pytest.mark.parametrize("missing", ["book", "member"])
-def test_reservation_with_missing_record_is_rejected(client, missing):
+def test_filter_reservations_by_member(client):
+    frst_book = add_book(client)
+    scnd_book = add_book(client, "Dune", "Frank Herbert", "9780441013593", 1)
+    frst_mem = add_member(client)
+    scnd_mem = add_member(client, "Alex", "alex@example.com")
+
+    # Pair different book and member IDs to check the correct filter is used.
+    response = client.post("/reservations", json={
+        "book_id": frst_book["id"],
+        "member_id": scnd_mem["id"]
+    })
+    assert response.status_code == 201
+    frst_resrv = response.get_json()
+
+    response = client.post("/reservations", json={
+        "book_id": scnd_book["id"],
+        "member_id": frst_mem["id"]
+    })
+    assert response.status_code == 201
+    scnd_resrv = response.get_json()
+
+    response = client.get("/reservations", query_string={
+        "member_id": frst_mem["id"]
+    })
+
+    assert response.status_code == 200
+    assert response.get_json() == [scnd_resrv]
+
+    saved = client.get("/reservations")
+    assert saved.get_json() == [frst_resrv, scnd_resrv]
+
+
+def test_reserve_missing_book(client):
     book = add_book(client)
-    member = add_member(client)
-    payload = {"book_id": book["id"], "member_id": member["id"]}
-    payload[f"{missing}_id"] = 999
+    mem = add_member(client)
 
-    response = client.post("/reservations", json=payload)
+    response = client.post("/reservations", json={
+        "book_id": 999,
+        "member_id": mem["id"]
+    })
 
     assert response.status_code == 404
-    assert response.get_json() == {
-        "error": f"{missing.capitalize()} not found"
-    }
-    assert client.get("/reservations").get_json() == []
-    assert client.get(f"/books/{book['id']}").get_json() == book
+    assert response.get_json() == {"error": "Book not found"}
+
+    saved = client.get("/reservations")
+    assert saved.get_json() == []
+
+    saved_book = client.get(f"/books/{book['id']}")
+    assert saved_book.get_json() == book
 
 
-@pytest.mark.parametrize("days_overdue,expected", [
+def test_reserve_missing_member(client):
+    book = add_book(client)
+    add_member(client)
+
+    response = client.post("/reservations", json={
+        "book_id": book["id"],
+        "member_id": 999
+    })
+
+    assert response.status_code == 404
+    assert response.get_json() == {"error": "Member not found"}
+
+    saved = client.get("/reservations")
+    assert saved.get_json() == []
+
+    saved_book = client.get(f"/books/{book['id']}")
+    assert saved_book.get_json() == book
+
+
+# Run the same test with three due-date cases
+# -2: due in two days, so no fine
+#  0: due today, so no fine
+#  3: three days late, so 3 × $0.25 = $0.75
+# These amounts use the app's existing daily rate
+
+@pytest.mark.parametrize("days_ovrdue,exptd", [
     (-2, 0.0),
     (0, 0.0),
     (3, 0.75)
 ])
-def test_active_loan_fine_before_on_and_after_due_date(
-        client, borrowed_book, days_overdue, expected):
+def test_active_loan_fine(
+        client, borrowed_book, days_ovrdue, exptd):
+
     from datetime import date, timedelta
     from app import store
 
-    book, borrower, waiting, loan = borrowed_book
-    record = store.loans[loan["id"]]
-    record.loan_date = date.today() - timedelta(days=20)
-    record.due_date = date.today() - timedelta(days=days_overdue)
+    book, brwr, wtng, loan = borrowed_book
+
+    # Set the loan dates directly so we can test fines without waiting for days
+    recrd = store.loans[loan["id"]]
+    recrd.loan_date = date.today() - timedelta(days=20)
+    recrd.due_date = date.today() - timedelta(days=days_ovrdue)
 
     response = client.get(f"/loans/{loan['id']}/fine")
 
     assert response.status_code == 200
     assert response.get_json() == {
         "loan_id": loan["id"],
-        "fine_amount": expected
+        "fine_amount": exptd
     }
-    assert record.return_date is None
+    assert recrd.return_date is None
 
 
-def test_returned_loan_fine_stops_at_return_date(client, borrowed_book):
+def test_returned_loan_fine(client, borrowed_book):
     from datetime import date, timedelta
     from app import store
 
-    book, borrower, waiting, loan = borrowed_book
-    record = store.loans[loan["id"]]
-    record.loan_date = date.today() - timedelta(days=19)
-    record.due_date = date.today() - timedelta(days=5)
-    record.return_date = date.today() - timedelta(days=3)
+    book, brwr, wtng, loan = borrowed_book
+    recrd = store.loans[loan["id"]]
+    recrd.loan_date = date.today() - timedelta(days=19)
+    recrd.due_date = date.today() - timedelta(days=5)
+    recrd.return_date = date.today() - timedelta(days=3)
 
     response = client.get(f"/loans/{loan['id']}/fine")
 
@@ -264,8 +357,7 @@ def test_returned_loan_fine_stops_at_return_date(client, borrowed_book):
         "fine_amount": 0.50
     }
 
-
-def test_fine_for_missing_loan_returns_error(client):
+def test_fine_missing_loan(client):
     response = client.get("/loans/999/fine")
 
     assert response.status_code == 404
