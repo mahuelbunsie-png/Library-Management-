@@ -422,6 +422,34 @@ def test_renew_missing_loan(client):
     assert client.get(f"/books/{book['id']}").get_json() == book
     assert client.get(f"/members/{member['id']}").get_json() == member
 
+def test_checkout_registered_member_preserves_records(client):
+    book = add_book(client, copies=2)
+    member = add_member(client)
+
+    result = client.post("/loans", json={
+        "book_id": book["id"],
+        "member_id": member["id"]
+    })
+
+    assert result.status_code == 201
+    loan = result.get_json()
+
+    # Confirm that the loan belongs to the registered member.
+    assert loan["member_id"] == member["id"]
+    assert loan["book_id"] == book["id"]
+
+    # The loan should be saved.
+    assert client.get("/loans").get_json() == [loan]
+
+    # Only one available copy should be deducted.
+    saved_book = client.get(f"/books/{book['id']}")
+    assert saved_book.status_code == 200
+    assert saved_book.get_json()["available_copies"] == 1
+
+    # Checkout must not modify the member's information.
+    saved_member = client.get(f"/members/{member['id']}")
+    assert saved_member.get_json() == member
+
 
 
 

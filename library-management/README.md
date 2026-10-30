@@ -1,3 +1,4 @@
+
 # Library Management System (LMS)
 
 A small Flask REST API for tracking books, members, and loans. Data is stored
@@ -51,12 +52,24 @@ app working without a REST client, and calls the same in-memory store.
 | GET | `/members/<id>` | Get one member |
 | PUT | `/members/<id>` | Update a member |
 | DELETE | `/members/<id>` | Delete a member |
-| POST | `/loans` | Check out a book (`book_id`, `member_id`) |
+| POST | `/loans` | Check out a book (`book_id`, `member_id`). Validates that the book and member exist; returns 404 if either is missing. |
 | PUT | `/loans/<id>/return` | Return a loaned book |
 | GET | `/loans?member_id=&book_id=` | Look up loans |
+
+### Loan Checkout Member Validation
+
+The `POST /loans` endpoint verifies that the requested book and member exist before creating a loan.
+
+- If the book does not exist, the endpoint returns HTTP 404 with `{"error": "Book not found"}`.
+- If the member does not exist, the endpoint returns HTTP 404 with `{"error": "Member not found"}`.
+- If both exist, the endpoint creates the loan and returns HTTP 201.
+
+A checkout rejected because of an invalid member ID does not create a loan or decrease the book's available copies.
+
+This functionality is tested in `tests/test_mahuel.py`.
 
 ## Tests
 
 ```bash
-pytest
+python -m pytest
 ```
