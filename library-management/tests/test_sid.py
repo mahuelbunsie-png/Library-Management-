@@ -363,3 +363,76 @@ def test_fine_missing_loan(client):
     assert response.status_code == 404
     assert response.get_json() == {"error": "Loan not found"}
     assert client.get("/loans").get_json() == []
+
+
+def test_rejected_checkout_keeps_records(client, borrowed_book):
+    book, brwr, wtng, loan = borrowed_book
+
+    saved_book = client.get(f"/books/{book['id']}").get_json()
+    saved_loans = client.get("/loans").get_json()
+
+    response = client.post("/loans", json={
+        "book_id": book["id"],
+        "member_id": wtng["id"]
+    })
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": "No book copies available in the current moment"
+    }
+    assert client.get(f"/books/{book['id']}").get_json() == saved_book
+    assert client.get("/loans").get_json() == saved_loans
+
+
+def test_checkout_last_copy(client):
+    book = add_book(client, copies=1)
+    mem = add_member(client)
+
+    response = client.post("/loans", json={
+        "book_id": book["id"],
+        "member_id": mem["id"]
+    })
+
+    assert response.status_code == 201
+    loan = response.get_json()
+    assert loan["book_id"] == book["id"]
+    assert loan["member_id"] == mem["id"]
+    assert loan["return_date"] is None
+    assert client.get("/loans").get_json() == [loan]
+
+    exptd = book.copy()
+    exptd["available_copies"] = 0
+    assert client.get(f"/books/{book['id']}").get_json() == exptd
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
