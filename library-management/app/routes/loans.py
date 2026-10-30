@@ -25,9 +25,15 @@ def list_loans():
 @loans_bp.route("", methods=["POST"])
 def checkout_book():
     data = request.get_json()
+
     book = store.books.get(data["book_id"])
     if book is None:
         return jsonify({"error": "Book not found"}), 404
+
+    # Verify that the member exists before creating a loan.
+    member = store.members.get(data["member_id"])
+    if member is None:
+        return jsonify({"error": "Member not found"}), 404
 
     book.available_copies -= 1
 
@@ -39,6 +45,7 @@ def checkout_book():
         due_date=Loan.default_due_date(),
     )
     store.loans[loan_id] = loan
+
     return jsonify(loan.to_dict()), 201
 
 
