@@ -35,6 +35,9 @@ def checkout_book():
     if member is None:
         return jsonify({"error": "Member not found"}), 404
 
+    if book.available_copies <= 0:
+        return jsonify({"error": "No book copies available in the current moment"}), 400
+
     book.available_copies -= 1
 
     loan_id = store.next_id("loan")
