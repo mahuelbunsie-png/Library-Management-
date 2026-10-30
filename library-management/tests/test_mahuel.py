@@ -407,6 +407,21 @@ def test_checkout_missing_member(client):
     assert saved_book.status_code == 200
     assert saved_book.get_json() == book
 
+def test_renew_missing_loan(client):
+    book = add_book(client)
+    member = add_member(client)
+
+    result = client.put("/loans/999/renew")
+
+    # A nonexistent loan cannot be renewed.
+    assert result.status_code == 404
+    assert result.get_json() == {"error": "Loan not found"}
+
+    # The failed renewal should not change existing records.
+    assert client.get("/loans").get_json() == []
+    assert client.get(f"/books/{book['id']}").get_json() == book
+    assert client.get(f"/members/{member['id']}").get_json() == member
+
 
 
 
