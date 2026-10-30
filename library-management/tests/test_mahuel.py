@@ -388,6 +388,24 @@ def test_delete_missing_member(client):
     assert saved_members.status_code == 200
     assert saved_members.get_json() == [member]
 
+def test_checkout_missing_member(client):
+    book = add_book(client)
+
+    result = client.post("/loans", json={
+        "book_id": book["id"],
+        "member_id": 999
+    })
+
+    # A loan cannot be created for a nonexistent member.
+    assert result.status_code == 404
+    assert result.get_json() == {"error": "Member not found"}
+
+    # Failed checkout should not create a loan or change availability.
+    assert client.get("/loans").get_json() == []
+
+    saved_book = client.get(f"/books/{book['id']}")
+    assert saved_book.status_code == 200
+    assert saved_book.get_json() == book
 
 
 
