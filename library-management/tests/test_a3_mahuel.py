@@ -111,3 +111,34 @@ def test_renew_returned_loan(client):
     saved_loan = client.get("/loans").get_json()[0]
     assert saved_loan["due_date"] == loan["due_date"]
     assert saved_loan["return_date"] is not None
+
+def test_delete_missing_book_page(client):
+    response = client.post("/ui/books/9999/delete")
+
+    assert response.status_code in (302, 303)
+
+    # The missing book should not be created.
+    assert client.get("/books/9999").status_code == 404
+
+    # The library should still have no books.
+    assert client.get("/books").get_json() == []
+
+def test_add_book_through_web_page(client):
+    response = client.post("/ui/books", data={
+        "title": "Clean Code",
+        "author": "Robert C. Martin",
+        "isbn": "9780132350884",
+        "total_copies": "3"
+    })
+
+    # The form should redirect to the books page.
+    assert response.status_code in (302, 303)
+
+    # Verify the book was actually saved.
+    books = client.get("/books").get_json()
+
+    assert len(books) == 1
+    assert books[0]["title"] == "Clean Code"
+    assert books[0]["author"] == "Robert C. Martin"
+    assert books[0]["total_copies"] == 3
+    assert books[0]["available_copies"] == 3
