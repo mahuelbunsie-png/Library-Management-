@@ -1,3 +1,5 @@
+from notification_service import send_notification, SENDER_NAME
+
 from datetime import date, timedelta
 
 from flask import Blueprint, jsonify, request
@@ -48,6 +50,13 @@ def checkout_book():
         due_date=Loan.default_due_date(),
     )
     store.loans[loan_id] = loan
+
+    send_notification(
+        member.email,
+        f"[{SENDER_NAME}] Book Checkout Confirmation",
+        f"Your checkout for book ID {book.id} was successful. "
+        f"Your loan ID is {loan.id}, and the due date is {loan.due_date}."
+    )
 
     return jsonify(loan.to_dict()), 201
 
