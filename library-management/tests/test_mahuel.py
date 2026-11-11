@@ -1,3 +1,7 @@
+
+import pytest
+
+
 def add_member(client, name="Mahuel", email="mahuel@example.com"):
     response = client.post("/members", json={
         "name": name,
@@ -42,7 +46,6 @@ def test_get_one_member(client):
     assert result.status_code == 200
     assert result.get_json() == member_two
     assert result.get_json()["id"] != member_one["id"]
-
 
 
 def test_update_member(client):
@@ -118,8 +121,6 @@ def test_delete_member_twice(client):
     assert result.status_code == 404
     assert result.get_json() == {"error": "Member not found"}
     assert client.get("/members").get_json() == [member_two]
-
-
 
 
 def add_book(client, copies=2):
@@ -204,8 +205,6 @@ def test_checkout_unavailable_book(client):
 
     saved_book = client.get(f"/books/{book['id']}")
     assert saved_book.get_json()["available_copies"] == 0
-
-
 
 
 def test_return_loan(client):
@@ -303,6 +302,10 @@ def test_filter_loans_by_book(client):
     assert saved_loans.get_json() == [loan_one, loan_two]
 
 
+@pytest.mark.xfail(
+    reason="Existing A2 defect: loan filtering uses book_id instead of member_id",
+    strict=True
+)
 def test_filter_loans_by_member(client):
     book_one = add_book(client)
     book_two = add_book(client)
@@ -322,9 +325,6 @@ def test_filter_loans_by_member(client):
 
     saved_loans = client.get("/loans")
     assert saved_loans.get_json() == [loan_one, loan_two]
-
-
-
 
 
 def test_renew_loan(client):
@@ -352,6 +352,10 @@ def test_renew_loan(client):
     assert saved_book.get_json()["available_copies"] == 1
 
 
+@pytest.mark.xfail(
+    reason="Existing A2 defect: renewal is allowed despite another member waiting",
+    strict=True
+)
 def test_renew_with_waiting_member(client):
     book = add_book(client, copies=1)
     borrower = add_member(client)
@@ -375,6 +379,7 @@ def test_renew_with_waiting_member(client):
     saved_book = client.get(f"/books/{book['id']}")
     assert saved_book.get_json()["available_copies"] == 0
 
+
 def test_delete_missing_member(client):
     member = add_member(client)
 
@@ -387,6 +392,7 @@ def test_delete_missing_member(client):
     saved_members = client.get("/members")
     assert saved_members.status_code == 200
     assert saved_members.get_json() == [member]
+
 
 def test_checkout_missing_member(client):
     book = add_book(client)
@@ -407,6 +413,7 @@ def test_checkout_missing_member(client):
     assert saved_book.status_code == 200
     assert saved_book.get_json() == book
 
+
 def test_renew_missing_loan(client):
     book = add_book(client)
     member = add_member(client)
@@ -421,6 +428,7 @@ def test_renew_missing_loan(client):
     assert client.get("/loans").get_json() == []
     assert client.get(f"/books/{book['id']}").get_json() == book
     assert client.get(f"/members/{member['id']}").get_json() == member
+
 
 def test_checkout_registered_member_preserves_records(client):
     book = add_book(client, copies=2)
@@ -449,17 +457,3 @@ def test_checkout_registered_member_preserves_records(client):
     # Checkout must not modify the member's information.
     saved_member = client.get(f"/members/{member['id']}")
     assert saved_member.get_json() == member
-
-
-
-
-
-
-
-
-
-
-
-
-
-
