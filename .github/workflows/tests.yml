@@ -1,3 +1,4 @@
+
 name: Run Tests
 
 on:
@@ -8,6 +9,7 @@ on:
 jobs:
   run-tests:
     runs-on: ubuntu-latest
+
     defaults:
       run:
         working-directory: library-management
@@ -26,6 +28,23 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
-      # Check that all tests pass and coverage is at least 90%
-      - name: Run pytest
-        run: python -m pytest -v --cov=app --cov-report=term-missing --cov-fail-under=90
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run unit and integration tests
+        run: python -m pytest tests --ignore=tests/e2e -v --cov=app --cov-report=term-missing --cov-fail-under=90
+
+      - name: Start Flask server
+        run: |
+          nohup python run.py > /tmp/flask.log 2>&1 &
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:5000/ > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/flask.log
+          exit 1
+
+      - name: Run Playwright E2E tests
+        run: python -m pytest tests/e2e -v
