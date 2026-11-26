@@ -73,3 +73,53 @@ This functionality is tested in `tests/test_mahuel.py`.
 ```bash
 python -m pytest
 ```
+
+
+## Assignment 4 — End-to-End Testing and Docker
+
+### Prerequisites
+
+- Python 3.11 or later
+- Docker Desktop with the Docker engine running
+- pytest-playwright and Chromium for browser-based testing
+
+Install Playwright and its browser:
+
+```powershell
+python -m pip install pytest-playwright
+python -m playwright install chromium
+```
+
+### Build the Docker Image
+
+From the `library-management` project folder:
+
+```powershell
+docker build -t cisc327-a4 .
+```
+
+### Run the Application in Docker
+
+```powershell
+docker run --rm -p 5000:5000 cisc327-a4
+```
+
+Open http://127.0.0.1:5000 in a browser.
+
+The container listens on port 5000. Press `Ctrl+C` in the terminal to stop it.
+
+### Run the End-to-End Tests
+
+With the application running locally or in Docker, open another terminal and run:
+
+```powershell
+python -m pytest tests/e2e -v --headed
+```
+
+The tests use Playwright and Chromium to interact with the application's HTML interface.
+
+### Data Persistence
+
+The Library Management System uses in-memory storage. Books, members, and loans are not persisted when the application or Docker container stops.
+
+Stopping and restarting the container resets the application's data.
